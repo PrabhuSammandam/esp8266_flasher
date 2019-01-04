@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style>
+            table, th, td {
+                border: 1px solid black;
+                border-collapse: collapse;
+            }
+            th, td {
+                padding: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Flashing the esp8266</h1>
+
+        <p>There are 2 types of images that can be loaded into esp8266.</p>
+        <ol>
+            <li><b>Without</b> bootloader.</li>
+            <li><b>With</b> bootloader.</li>
+        </ol>
+
+
+        <h2>1.Without Bootloader:</h2>
+
+        <p>To create the image without bootloader following are the options to give</p>
+        <ol><li>boot=none (no change in other options)</li></ol>
+
+        <p>The above command will produce 2 files (usually the * is eagle)</p>
+        <ol>
+            <li>*.flash.bin</li>
+            <li>*.irom0text.bin</li>
+        </ol>
+        <p>As looked through the gen_app_bin.py <br>
+
+            <em>*.flash.bin</em> => contains the ".text, .data, .rodata" sections.<br>
+            <em>*.irom0text.bin</em> => contains the ".irom0text" section.</p>
+
+        <h3>Commands to create binary image</h3>
+        <ol>
+            <li>esptool2<br><br>
+                <em><strong>$esptool2 -bin -boot0 -4096 -qio -40 [input.out] [output.bin] .text .data .rodata</strong></em> (this will create the *.flash.bin)<br><br>
+                <em><strong>$esptool2 -lib [input.out] [output.bin]</strong></em> [this will create the *.irom0text.bin]<br><br>
+            </li>
+            <li>gen_appbin<br><br>
+                <em><strong>$xtensa-lx106-elf-objcopy.exe --only-section .text -O binary [input.out] eagle.app.v6.text.bin</strong></em><br><br>
+                <em><strong>$xtensa-lx106-elf-objcopy.exe --only-section .data -O binary [input.out] eagle.app.v6.data.bin</strong></em><br><br>
+                <em><strong>$xtensa-lx106-elf-objcopy.exe --only-section .rodata -O binary [input.out] eagle.app.v6.rodata.bin</strong></em><br><br>
+                <em><strong>$xtensa-lx106-elf-objcopy.exe --only-section .irom0.text -O binary [input.out] eagle.app.v6.irom0text.bin</strong></em><br><br>
+
+                <em><strong>$gen_appbin [input.out] 0 0 0 4</strong></em> [this will create *.flash.bin from the above three files created using objcopy [.text, .data, .rodata]]
+            </li>
+        </ol>
+        <em>Note:
+            To use the gen_appbin, it is necessary to create the four files using the objcopy as mentioned above and the file should
+            be in the same path also. This is the problem of using the gen_appbin and thats why the esptool2 was created.</em>
+
+        <h3>Commands to fuse binary image</h3>
+        <p>Both esptool & esptool-ck supports the automatic reset of the board and auto flashing mode(entering into fuse mode).</p>
+
+        <ol>
+            <li>esptool<br><br>
+                <em><strong>$esptool -p COM12 -b 256000 write_flash -ff 40m -fm qio -fs 32m 0x00000 *.flash.bin 0x10000 *.irom0text.bin</strong></em><br><br>
+
+                <em>Note:
+                    The address for *.flash.bin is always 0x00000 and the address for the *.irom0text.bin is specified in the ld file (check for irom0_0_seg).</em>
+                <br><br>
+            </li>
+            <li>esptool-ck<br><br>
+                <em><strong>$esptool-ck -v -cd ck -cb 256000 -cp COM11 -ca 0x00000 -cf *.flash.bin -ca 0x01000 -cf *.irom0text.bin</strong></em><br><br>
+                <em>Note:
+                    The address for *.flash.bin is always 0x00000 and the address for the *.irom0text.bin is specified in the ld file (check for irom0_0_seg).</em>
+            </li>
+        </ol>
+
+
+        <h2>2. With Bootloader</h2>
+        <p>There are 2 types of images that will be created with bootloader.</p>
+
+        <ol>
+            <li>new bootloader</li>
+            <li>old bootloader (don't use it anymore)</li>
+        </ol>
+
+        <h3>New Bootloader</h3>
+        <p>To create the new bootloader following are the options to pass</p>
+        <ol><li>boot=new (no change in other options)</li></ol>
+
+        <p>The above command will produce 1 file</p>
+
+        <ol><li>user[x].new.[flash_map].bin</li></ol>
+
+        <p>As looked through the gen_app_bin.py following are the contents of the generated file in the specified order</p>
+
+        <ol><li>.irom0text</li>
+            <li>.text</li>
+            <li>.data</li>
+            <li>.rodata</li></ol>
+
+        <h4>Commands to create binary image</h4>
+        <ol>
+            <li>esptool2<br><br>
+                <em><strong>$esptool2 -bin -boot2 -4096 -qio -40 [input.out] [user[x].new.[flash_map].bin] .text .data .rodata</strong></em><br><br>
+            </li>
+            <li>gen_appbin<br><br>
+                <em><strong>$xtensa-lx106-elf-objcopy.exe --only-section .text -O binary [input.out] eagle.app.v6.text.bin</strong></em><br><br>
+                <em><strong>$xtensa-lx106-elf-objcopy.exe --only-section .data -O binary [input.out] eagle.app.v6.data.bin</strong></em><br><br>
+                <em><strong>$xtensa-lx106-elf-objcopy.exe --only-section .rodata -O binary [input.out] eagle.app.v6.rodata.bin</strong></em><br><br>
+                <em><strong>$xtensa-lx106-elf-objcopy.exe --only-section .irom0.text -O binary [input.out] eagle.app.v6.irom0text.bin</strong></em><br><br>
+
+                <em><strong>$gen_appbin [input.out] 2 0 0 4</strong></em> [this will create "user[x].new.[flash_map].bin" from the above three files created using objcopy [.text, .data, .rodata]]<br><br>
+
+                Note:
+                To use the gen_appbin, it is necessary to create the four files using the objcopy as mentioned above and the file should
+                be in the same path also. This is the problem of using the gen_appbin and thats why the esptool2 was created.
+            </li></ol>
+        <h4>Commands to fuse binary image</h4>
+        Both esptool & esptool-ck supports automatic reset of the board and auto flashing mode(entering into fuse mode).
+        <ol>
+            <li>esptool<br><br>
+                <em><strong>$esptool -p COM12 -b 256000 write_flash -ff 40m -fm qio -fs 32m 0x1000 user[x].new.[flash_map].bin</strong></em><br><br>
+
+                Note:
+                The address for the user[x].new.[flash_map].bin is specified in the ld file (check for irom0_0_seg).
+                The address will vary based on the partition ie user1 or user2<br><br>
+            </li>
+            <li>esptool-ck<br><br>
+                <em><strong>$esptool-ck -v -cd ck -cb 256000 -cp COM11 -ca 0x1000 -cf user[x].new.[flash_map].bin</strong></em><br><br>
+
+                Note:
+                The address for the user[x].new.[flash_map].bin is specified in the ld file (check for irom0_0_seg).
+                The address will vary based on the partition ie user1 or user2<br><br>
+            </li></ol>
+        <h3>Old Bootloader</h3>
+        To create the old bootloader following are the options to pass
+        <ol><li> boot=old (no change in other options)</li></ol>
+
+        The above command will produce 1 file
+
+        <ol><li>user[x].old.[flash_map].bin</li></ol>
+
+        As looked through the gen_app_bin.py following are the contents of the generated file in the specified order
+
+        <ol><li>.text</li>
+            <li>.data</li>
+            <li>.rodata</li>
+            <li>.irom0text</li></ol>
+
+        <h4>Commands to create binary image</h4>
+        <ol><li>
+                esptool2<br><br>
+                <em><strong>$esptool2 -bin -boot1 -4096 -qio -40 [input.out] [user[x].old.[flash_map].bin] .text .data .rodata</strong></em><br><br>
+            </li>
+            <li>gen_appbin<br><br>
+                <em><strong>$xtensa-lx106-elf-objcopy.exe --only-section .text -O binary [input.out] eagle.app.v6.text.bin</strong></em><br><br>
+                <em><strong>$xtensa-lx106-elf-objcopy.exe --only-section .data -O binary [input.out] eagle.app.v6.data.bin</strong></em><br><br>
+                <em><strong>$xtensa-lx106-elf-objcopy.exe --only-section .rodata -O binary [input.out] eagle.app.v6.rodata.bin</strong></em><br><br>
+                <em><strong>$xtensa-lx106-elf-objcopy.exe --only-section .irom0.text -O binary [input.out] eagle.app.v6.irom0text.bin</strong></em><br><br>
+
+                <em><strong>$gen_appbin [input.out] 1 0 0 4 [this will create "user[x].old.[flash_map].bin" from the above three files created using objcopy [.text, .data, .rodata]]</strong></em><br><br>
+
+                Note:
+                To use the gen_appbin, it is necessary to create the four files using the objcopy as mentioned above and the file should
+                be in the same path also. This is the problem of using the gen_appbin and thats why the esptool2 was created.<br><br>
+            </li></ol>
+        <h4>Commands to fuse binary image</h4>
+        Both esptool & esptool-ck supports automatic reset of the board and auto flashing mode(entering into fuse mode).
+        <ol>
+            <li>esptool<br><br>
+                <em><strong>$esptool -p COM12 -b 256000 write_flash -ff 40m -fm qio -fs 32m 0x1000 user[x].old.[flash_map].bin</strong></em><br><br>
+
+                Note:
+                The address for the user[x].old.[flash_map].bin is specified in the ld file (check for irom0_0_seg).
+                The address will vary based on the partition ie user1 or user2<br><br>
+            </li>
+            <li>esptool-ck<br><br>
+                <em><strong>$esptool-ck -v -cd ck -cb 256000 -cp COM11 -ca 0x1000 -cf user[x].old.[flash_map].bin</strong></em><br><br>
+
+                Note:
+                The address for the user[x].old.[flash_map].bin is specified in the ld file (check for irom0_0_seg).
+                The address will vary based on the partition ie user1 or user2<br><br>
+            </li></ol>
+        <h1>ESP8266 Flash Maps</h1>
+
+        <h2>Flash Maps</h2>
+        <p>There are two types of images used for esp8266.</p>
+        <ol>
+            <li>Image <b>without</b> bootloader</li>
+            <li>Image <b>with</b> bootloader</li>
+        </ol>
+        <h3>1. Image <b>without</b> bootloader</h3>
+        <p>For this there are two bin files generated from the compilation.<br>
+            There is no memory partition for this image.</p>
+        <ol type="a">
+            <li>0x00000.bin (This file is combined .text, .data, .rodata sections)</li>
+            <li>0x10000.bin (This file is .irom0text section )</li>
+        </ol>
+        <em>Note: 0x10000 is not always  constant, check in the loader script
+            for the address for .irom0text section.</em>
+        <p>Based on the size of the flash, following bin's need to be fused.</p>
+        <table >
+            <caption><em><b>Binaries to flash</b></em></caption>
+            <tr>
+                <th>Binary Files</th>
+                <th colspan="4">Flash Size</th>
+            </tr>
+            <tr>
+                <th></th>
+                <th>512 KB</th>
+                <th>1 MB</th>
+                <th>2 MB</th>
+                <th>4 MB</th>
+            </tr>
+            <tr>
+                <td>0x00000.bin</td>
+                <td>0x00000</td>
+                <td>0x00000</td>
+                <td>0x00000</td>
+                <td>0x00000</td>
+            </tr>
+            <tr>
+                <td>0x10000.bin</td>
+                <td>0x10000</td>
+                <td>0x10000</td>
+                <td>0x10000</td>
+                <td>0x10000</td>
+            </tr>
+            <tr>
+                <td>esp_init_data_default.bin</td>
+                <td>0x07C000</td>
+                <td>0x0FC000</td>
+                <td>0x1FC000</td>
+                <td>0x3FC000</td>
+            </tr>
+            <tr>
+                <td>blank.bin</td>
+                <td>0x07E000</td>
+                <td>0x0FE000</td>
+                <td>0x1FE000</td>
+                <td>0x3FE000</td>
+            </tr>
+        </table>
+        <h3>2. Image <b>with</b> bootloader</h3>
+        <table >
+            <caption><em><b>Binaries to flash</b></em></caption>
+
+            <tr>
+                <th>Flash Size</th>
+                <th colspan="1">512 KB</th>
+                <th colspan="1">1 MB</th>
+                <th colspan="2">2 MB</th>
+                <th colspan="2">4 MB</th>
+            </tr>
+            <tr>
+                <th>Flash Map</th>
+                <th>256 KB + 256 KB</th>
+
+                <th>512 KB + 512 KB</th>
+
+                <th>512 KB + 512 KB</th>
+                <th>1024 KB + 1024 KB</th>
+
+                <th>512 KB + 512 KB</th>
+                <th>1024 KB + 1024 KB</th>
+            </tr>
+            <tr>
+                <td>boot.bin</td>
+                <td>0x000000</td>
+                <td>0x000000</td>
+                <td>0x000000</td>
+                <td>0x000000</td>
+                <td>0x000000</td>
+                <td>0x000000</td>
+            </tr>
+            <tr>
+                <td>user1.bin</td>
+                <td>0x001000</td>
+                <td>0x001000</td>
+                <td>0x001000</td>
+                <td>0x001000</td>
+                <td>0x001000</td>
+                <td>0x001000</td>
+            </tr>
+            <tr>
+                <td>master_device_key.bin</td>
+                <td>0x03E000</td>
+                <td>0x07E000</td>
+                <td>0x07E000</td>
+                <td>0x0FE000</td>
+                <td>0x07E000</td>
+                <td>0x0FE000</td>
+            </tr>
+            <tr>
+                <td>user2.bin</td>
+                <td>0x041000</td>
+                <td>0x081000</td>
+                <td>0x081000</td>
+                <td>0x101000</td>
+                <td>0x081000</td>
+                <td>0x101000</td>
+            </tr>
+            <tr>
+                <td>blank.bin</td>
+                <td></td>
+                <td></td>
+                <td>0x1FB000</td>
+                <td>0x1FB000</td>
+                <td>0x3FB000</td>
+                <td>0x3FB000</td>
+            </tr>
+            <tr>
+                <td>esp_init_data_default.bin</td>
+                <td>0x07C000</td>
+                <td>0x0FC000</td>
+                <td>0x1FC000</td>
+                <td>0x1FC000</td>
+                <td>0x3FC000</td>
+                <td>0x3FC000</td>
+            </tr>
+            <tr>
+                <td>blank.bin</td>
+                <td>0x07E000</td>
+                <td>0x0FE000</td>
+                <td>0x1FE000</td>
+                <td>0x1FE000</td>
+                <td>0x3FE000</td>
+                <td>0x3FE000</td>
+            </tr>
+        </table>
+    </body>
+</html>
